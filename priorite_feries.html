@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Priorité Jours Fériés</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700&display=swap');
+  :root{
+    --bg:#0f1117;--surface:#171b25;--surface2:#1e2433;--border:#2a3045;
+    --accent:#4f8ef7;--accent2:#f7c94f;--accent3:#4fd9a0;--accent4:#b47ef7;--danger:#f7614f;
+    --text:#e8ecf5;--text2:#8a93ad;--text3:#555f7a;--radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:28px 18px;}
+
+  /* ── MODAL PIN ── */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px);}
+  .modal-overlay.hidden{display:none;}
+  .modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:32px 28px;width:100%;max-width:340px;text-align:center;}
+  .modal h2{font-size:18px;font-weight:700;margin-bottom:6px;}
+  .modal p{font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);margin-bottom:24px;line-height:1.6;}
+  .pin-dots{display:flex;justify-content:center;gap:12px;margin-bottom:20px;}
+  .pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--border);background:transparent;transition:background .15s,border-color .15s;}
+  .pin-dot.filled{background:var(--accent);border-color:var(--accent);}
+  .pin-dot.error{background:var(--danger);border-color:var(--danger);}
+  .pin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:220px;margin:0 auto;}
+  .pin-key{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:18px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;font-family:'Syne',sans-serif;}
+  .pin-key:hover{background:var(--border);}
+  .pin-key:active{transform:scale(.93);}
+  .pin-key.del{font-size:14px;color:var(--text2);}
+  .pin-key.wide{grid-column:span 3;}
+  .pin-err{font-family:'DM Mono',monospace;font-size:11px;color:var(--danger);margin-top:12px;min-height:16px;}
+
+  /* ── MODAL CHANGEMENT PIN ── */
+  .modal input[type="text"]{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:20px;letter-spacing:8px;text-align:center;padding:12px;width:140px;outline:none;}
+  .modal input:focus{border-color:var(--accent);}
+
+  /* ── HEADER ── */
+  header{max-width:920px;margin:0 auto 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);padding-bottom:16px;flex-wrap:wrap;}
+  header h1{font-size:20px;font-weight:700;letter-spacing:-.3px;flex:1;}
+  .tag{font-family:'DM Mono',monospace;font-size:11px;padding:3px 8px;border-radius:4px;}
+  .tag-blue{color:var(--accent);background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.25);}
+  .tag-green{color:var(--accent3);background:rgba(79,217,160,.12);border:1px solid rgba(79,217,160,.25);}
+  .tag-gray{color:var(--text2);background:rgba(138,147,173,.1);border:1px solid var(--border);}
+  #save-status{font-family:'DM Mono',monospace;font-size:11px;color:var(--accent3);background:rgba(79,217,160,.1);border:1px solid rgba(79,217,160,.2);padding:3px 8px;border-radius:4px;opacity:0;transition:opacity .4s;}
+  #mode-btn{cursor:pointer;}
+
+  /* ── MODE LECTURE : bandeau ── */
+  .read-banner{background:rgba(79,217,160,.07);border:1px solid rgba(79,217,160,.2);border-radius:var(--radius);padding:12px 18px;display:flex;align-items:center;gap:12px;font-family:'DM Mono',monospace;font-size:12px;color:var(--accent3);}
+  .read-banner.hidden{display:none;}
+
+  .main{max-width:920px;margin:0 auto;display:flex;flex-direction:column;gap:20px;}
+  .mem-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);flex-wrap:wrap;gap:8px;}
+  .mem-bar small{color:var(--text3);font-size:11px;}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px 22px;}
+  .card-title{font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:1px;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+  .dot{width:7px;height:7px;border-radius:50%;display:inline-block;}
+
+  textarea,input[type="date"]{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'DM Mono',monospace;font-size:13px;padding:10px 13px;outline:none;transition:border-color .2s;width:100%;}
+  textarea{resize:vertical;min-height:120px;line-height:1.8;padding:13px;}
+  textarea:focus,input:focus{border-color:var(--accent);}
+  textarea::placeholder,input::placeholder{color:var(--text3);}
+  .hint{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:7px;line-height:1.7;}
+
+  .btn{padding:9px 18px;border-radius:8px;border:none;font-family:'Syne',sans-serif;font-size:13px;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;}
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--accent);color:#fff;}
+  .btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+  .btn-danger{background:rgba(247,97,79,.15);color:var(--danger);border:1px solid rgba(247,97,79,.25);padding:7px 11px;}
+  .btn-accent2{background:var(--accent2);color:#1a1200;}
+  .btn-accent3{background:var(--accent3);color:#032018;}
+  .btn-sm{padding:6px 12px;font-size:12px;}
+  .btn:hover{opacity:.85;}
+  .btn-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center;}
+
+  .agents-table{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;max-height:280px;overflow-y:auto;}
+  .agent-item{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 12px;display:flex;align-items:center;gap:10px;font-family:'DM Mono',monospace;font-size:12px;}
+  .agent-item .aname{flex:1;color:var(--text);font-weight:500;}
+  .agent-item .ahire{color:var(--accent4);font-size:11px;}
+  .agent-item .ahire.missing{color:var(--text3);}
+
+  #histo-list{display:flex;flex-direction:column;gap:7px;margin-bottom:12px;}
+  .histo-entry{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;display:flex;align-items:center;gap:10px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text2);}
+  .date-tag{background:rgba(79,142,247,.12);border:1px solid rgba(79,142,247,.2);color:var(--accent);padding:2px 8px;border-radius:4px;font-size:11px;white-space:nowrap;}
+  .agents-tag{flex:1;color:var(--text);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .histo-add{display:grid;grid-template-columns:180px 1fr auto;gap:10px;align-items:start;}
+  @media(max-width:600px){.histo-add{grid-template-columns:1fr;}}
+
+  #result-section{display:none;}
+  .result-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .result-title{font-size:16px;font-weight:700;}
+  .result-subtitle{font-size:12px;color:var(--text2);font-family:'DM Mono',monospace;margin-top:3px;}
+
+  .result-group{margin-bottom:20px;}
+  .group-label{font-family:'DM Mono',monospace;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.8px;padding:6px 0 10px;display:flex;align-items:center;gap:8px;}
+  .group-line{flex:1;height:1px;background:var(--border);}
+
+  .agent-list{display:flex;flex-direction:column;gap:7px;}
+  .agent-row{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 15px;display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:12px;transition:border-color .2s;animation:fadeUp .3s ease both;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(7px);}to{opacity:1;transform:translateY(0);}}
+  .agent-row.p1{border-color:rgba(79,217,160,.4);background:rgba(79,217,160,.04);}
+  .agent-row.p2{border-color:rgba(247,201,79,.3);background:rgba(247,201,79,.03);}
+  .agent-row.p3{border-color:rgba(180,126,247,.3);background:rgba(180,126,247,.03);}
+  .agent-row:hover{border-color:rgba(79,142,247,.35);}
+
+  .rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:6px;}
+  .rank.top{border-color:var(--accent3);color:var(--accent3);background:rgba(79,217,160,.1);}
+  .rank.mid{border-color:var(--accent2);color:var(--accent2);}
+  .rank.anc{border-color:var(--accent4);color:var(--accent4);}
+
+  .agent-name{font-size:14px;font-weight:600;}
+  .agent-detail{font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap;}
+
+  .badge{font-family:'DM Mono',monospace;font-size:10px;padding:3px 8px;border-radius:4px;white-space:nowrap;}
+  .badge-green{background:rgba(79,217,160,.15);color:var(--accent3);border:1px solid rgba(79,217,160,.25);}
+  .badge-yellow{background:rgba(247,201,79,.12);color:var(--accent2);border:1px solid rgba(247,201,79,.2);}
+  .badge-purple{background:rgba(180,126,247,.12);color:var(--accent4);border:1px solid rgba(180,126,247,.2);}
+  .badge-gray{background:rgba(138,147,173,.1);color:var(--text2);border:1px solid var(--border);}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:8px 0;font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);}
+  .legend-item{display:flex;align-items:center;gap:5px;}
+  .legend-dot{width:8px;height:8px;border-radius:50%;}
+
+  #warn-unknown{display:none;margin-top:10px;padding:11px 13px;background:rgba(247,97,79,.08);border:1px solid rgba(247,97,79,.2);border-radius:8px;font-family:'DM Mono',monospace;font-size:12px;color:var(--danger);}
+  .divider{border:none;border-top:1px solid var(--border);margin:8px 0;}
+
+  /* Accordéon historique */
+  .histo-entry{cursor:pointer;}
+  .histo-entry:hover{border-color:rgba(79,142,247,.35);background:rgba(79,142,247,.04);}
+  .histo-chevron{font-size:10px;color:var(--text3);transition:transform .2s;margin-left:4px;}
+  .histo-chevron.open{transform:rotate(180deg);}
+  .histo-agents-detail{display:none;padding:10px 13px 4px;flex-direction:column;gap:5px;}
+  .histo-agents-detail.open{display:flex;}
+  .histo-agent-chip{font-family:'DM Mono',monospace;font-size:11px;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 9px;display:inline-block;}
+
+  /* Sections masquées en lecture */
+  .editor-only{transition:opacity .2s;}
+  body.read-mode .editor-only{opacity:.35;pointer-events:none;user-select:none;}
+  body.read-mode .editor-only *{pointer-events:none!important;}
+</style>
+</head>
+<body class="read-mode">
+
+<!-- ── MODAL PIN ── -->
+<div class="modal-overlay hidden" id="pin-modal">
+  <div class="modal">
+    <h2 id="pin-title">🔐 Mode Planificateur</h2>
+    <p id="pin-desc">Entrez votre code PIN à 4 chiffres pour modifier les données.</p>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div>
+      <div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div>
+      <div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-grid">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key del" onclick="pinClose()">✕</button>
+    </div>
+    <div class="pin-err" id="pin-err"></div>
+  </div>
+</div>
+
+<!-- ── MODAL CHANGER PIN ── -->
+<div class="modal-overlay hidden" id="change-pin-modal">
+  <div class="modal">
+    <h2>🔑 Changer le code PIN</h2>
+    <p>Entrez un nouveau code PIN à 4 chiffres.</p>
+    <input type="text" id="new-pin-input" maxlength="4" pattern="\d{4}" placeholder="••••" oninput="this.value=this.value.replace(/\D/g,'')">
+    <div class="pin-err" id="change-pin-err"></div>
+    <div style="display:flex;gap:10px;justify-content:center;margin-top:18px;">
+      <button class="btn btn-secondary btn-sm" onclick="closePinChange()">Annuler</button>
+      <button class="btn btn-primary btn-sm" onclick="confirmPinChange()">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<header>
+  <h1>🗓 Priorité Jours Fériés</h1>
+  <span class="tag tag-blue">ACTIVITÉ</span>
+  <span class="tag tag-gray" id="mode-tag">👁 Lecture seule</span>
+  <button class="btn btn-sm tag" id="mode-btn" onclick="handleModeBtn()" style="font-size:11px;">🔐 Connexion planificateur</button>
+  <span id="save-status"></span>
+</header>
+
+<div class="main">
+
+  <!-- Bandeau lecture -->
+  <div class="read-banner" id="read-banner">
+    👁 Vous êtes en <b style="margin:0 4px;">mode lecture</b> — vous pouvez consulter les agents, l'historique et les priorités, mais pas modifier les données.
+  </div>
+
+  <!-- Barre mémoire -->
+  <div class="mem-bar">
+    <span id="save-info">📦 Chargement…</span>
+    <small>Données sauvegardées automatiquement dans ce navigateur</small>
+  </div>
+
+  <!-- ── ÉTAPE 1 : Agents ── -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent)"></span>Étape 1 — Liste des agents</div>
+
+    <!-- Vue lecture : tableau seul -->
+    <div id="agents-readonly" style="display:none;">
+      <div class="agents-table" id="agents-readonly-list"></div>
+    </div>
+
+    <!-- Vue édition -->
+    <div class="editor-only" id="agents-edit-block">
+      <textarea id="agents-input" placeholder="Collez ici la liste complète (un agent par ligne) :
+Format avec date d'embauche :   Nom Prénom | JJ/MM/AAAA
+Format sans date :               Nom Prénom
+
+Exemples :
+Ahmed Raza | 15/03/2019
+Fatima Dupont02/09/21
+Jean Martin"></textarea>
+      <div class="hint">⟶ Séparateur <b>|</b> facultatif — la date peut aussi être collée directement après le nom. Année sur 2 ou 4 chiffres acceptée.</div>
+      <div class="btn-row">
+        <button class="btn btn-secondary" onclick="loadAgents()">✓ Valider & importer</button>
+        <span id="agents-count" style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);"></span>
+      </div>
+      <div id="agents-table" style="margin-top:14px;display:none;">
+        <hr class="divider">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text3);">Liste en mémoire — modifiable</span>
+          <button class="btn btn-sm btn-danger" onclick="clearAgents()">Vider la liste</button>
+        </div>
+        <div class="agents-table" id="agents-list-view"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ÉTAPE 2 : Historique ── -->
+  <div class="card">
+    <div class="card-title"><span class="dot" style="background:var(--accent2)"></span>Étape 2 — Historique des jours fériés</div>
+    <div id="histo-list"></div>
+    <div class="histo-add editor-only">
+      <input type="date" id="new-date"/>
+      <textarea id="new-agents" placeholder="Agents ayant bénéficié ce jour (un par ligne ou virgule)" style="min-height:70px;height:70px;"></textarea>
+      <button class="btn btn-primary" onclick="addEntry()" style="align-self:stretch;">+</button>
+    </div>
+    <div class="hint editor-only" style="margin-top:8px;">⟶ Noms tels qu'ils apparaissent dans la liste (sans la date d'embauche).</div>
+  </div>
+
+  <!-- ── CALCULER ── -->
+  <div style="display:flex;gap:12px;justify-content:flex-end;flex-wrap:wrap;">
+    <button class="btn btn-secondary editor-only" onclick="clearAll()">Tout réinitialiser</button>
+    <button class="btn btn-accent2" onclick="calculate()">⚡ Calculer les priorités</button>
+  </div>
+
+  <!-- ── RÉSULTATS ── -->
+  <div class="card" id="result-section">
+    <div class="result-header">
+      <div>
+        <div class="result-title">Résultats — Agents à prioriser</div>
+        <div class="result-subtitle" id="result-subtitle"></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="copyResult()">📋 Copier la liste</button>
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent4)"></div>Jamais bénéficié — classé par ancienneté</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent3)"></div>Priorité haute</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--accent2)"></div>Priorité moyenne</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--text3)"></div>Priorité basse</div>
+    </div>
+    <div id="warn-unknown"></div>
+    <div id="result-body"></div>
+  </div>
+
+  <!-- ── PARAMÈTRES (planificateur uniquement) ── -->
+  <div class="card" id="settings-card" style="display:none;">
+    <div class="card-title"><span class="dot" style="background:var(--text3)"></span>Paramètres planificateur</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-secondary btn-sm" onclick="openPinChange()">🔑 Changer le code PIN</button>
+      <button class="btn btn-danger btn-sm" onclick="clearAll()">🗑 Tout réinitialiser</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const SK = 'planif_feries_v3';
+const PIN_KEY = 'planif_pin_v1';
+const DEFAULT_PIN = '1234';
+
+let agents  = [];
+let history = [];
+let isEditor = false;
+let pinBuffer = '';
+let pinAction = 'login'; // 'login'
+
+// ── PIN ───────────────────────────────────────────────────
+function getPin(){ return localStorage.getItem(PIN_KEY) || DEFAULT_PIN; }
+
+function handleModeBtn(){
+  if(isEditor){ lockMode(); }
+  else { pinAction='login'; openPinModal(); }
+}
+
+function openPinModal(){
+  pinBuffer='';
+  updatePinDots();
+  document.getElementById('pin-err').textContent='';
+  document.getElementById('pin-title').textContent='🔐 Mode Planificateur';
+  document.getElementById('pin-desc').textContent='Entrez votre code PIN à 4 chiffres pour modifier les données.';
+  document.getElementById('pin-modal').classList.remove('hidden');
+}
+function pinClose(){ document.getElementById('pin-modal').classList.add('hidden'); pinBuffer=''; updatePinDots(); }
+
+function pinKey(k){
+  if(pinBuffer.length>=4) return;
+  pinBuffer+=k;
+  updatePinDots();
+  if(pinBuffer.length===4) setTimeout(checkPin,120);
+}
+function pinDel(){ pinBuffer=pinBuffer.slice(0,-1); updatePinDots(); document.getElementById('pin-err').textContent=''; }
+
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    const d=document.getElementById('d'+i);
+    d.classList.toggle('filled', i<pinBuffer.length);
+    d.classList.remove('error');
+  }
+}
+
+function checkPin(){
+  if(pinBuffer===getPin()){
+    pinClose();
+    if(pinAction==='login') unlockMode();
+  } else {
+    for(let i=0;i<4;i++) document.getElementById('d'+i).classList.add('error');
+    document.getElementById('pin-err').textContent='Code incorrect. Réessayez.';
+    setTimeout(()=>{ pinBuffer=''; updatePinDots(); },800);
+  }
+}
+
+function unlockMode(){
+  isEditor=true;
+  document.body.classList.remove('read-mode');
+  document.getElementById('mode-tag').textContent='✏️ Planificateur';
+  document.getElementById('mode-tag').className='tag tag-green';
+  document.getElementById('mode-btn').textContent='🔒 Verrouiller';
+  document.getElementById('read-banner').classList.add('hidden');
+  // Afficher bloc édition, masquer lecture
+  document.getElementById('agents-edit-block').style.display='block';
+  document.getElementById('agents-readonly').style.display='none';
+  document.getElementById('settings-card').style.display='block';
+  renderAgentsTable();
+}
+
+function lockMode(){
+  isEditor=false;
+  document.body.classList.add('read-mode');
+  document.getElementById('mode-tag').textContent='👁 Lecture seule';
+  document.getElementById('mode-tag').className='tag tag-gray';
+  document.getElementById('mode-btn').textContent='🔐 Connexion planificateur';
+  document.getElementById('read-banner').classList.remove('hidden');
+  document.getElementById('agents-edit-block').style.display='none';
+  document.getElementById('agents-readonly').style.display='block';
+  document.getElementById('settings-card').style.display='none';
+  renderAgentsReadonly();
+}
+
+// ── Changer PIN ───────────────────────────────────────────
+function openPinChange(){
+  document.getElementById('new-pin-input').value='';
+  document.getElementById('change-pin-err').textContent='';
+  document.getElementById('change-pin-modal').classList.remove('hidden');
+}
+function closePinChange(){ document.getElementById('change-pin-modal').classList.add('hidden'); }
+function confirmPinChange(){
+  const val=document.getElementById('new-pin-input').value.trim();
+  if(!/^\d{4}$/.test(val)){
+    document.getElementById('change-pin-err').textContent='Le PIN doit contenir exactement 4 chiffres.';
+    return;
+  }
+  localStorage.setItem(PIN_KEY, val);
+  closePinChange();
+  alert('✅ Code PIN modifié avec succès.');
+}
+
+// ── Storage ───────────────────────────────────────────────
+function save(){
+  localStorage.setItem(SK, JSON.stringify({agents,history}));
+  showSaveStatus();
+}
+function loadFromStorage(){
+  try{
+    const raw=localStorage.getItem(SK);
+    if(!raw){updateSaveInfo();applyReadMode();return;}
+    const d=JSON.parse(raw);
+    agents=d.agents||[];
+    history=d.history||[];
+    if(agents.length){
+      document.getElementById('agents-input').value=agents.map(a=>a.hireDate?`${a.name} | ${a.hireDate}`:a.name).join('\n');
+      refreshAgentsCount();
+    }
+    renderHistory();
+  }catch(e){console.warn(e);}
+  updateSaveInfo();
+  applyReadMode();
+  // Auto-calculer si données présentes
+  if(agents.length) calculate();
+}
+function applyReadMode(){
+  // Toujours démarrer en mode lecture
+  document.getElementById('agents-edit-block').style.display='none';
+  document.getElementById('agents-readonly').style.display='block';
+  document.getElementById('settings-card').style.display='none';
+  renderAgentsReadonly();
+}
+
+function showSaveStatus(){
+  const el=document.getElementById('save-status');
+  el.textContent='💾 Sauvegardé '+new Date().toLocaleTimeString('fr-FR');
+  el.style.opacity='1';
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.style.opacity='0',2500);
+}
+function updateSaveInfo(){
+  const el=document.getElementById('save-info');
+  if(!el)return;
+  const n=history.length,a=agents.length;
+  el.textContent=a>0?`📦 ${a} agent${a>1?'s':''} · ${n} jour${n>1?'s féries':'s férié'} en mémoire`:'📦 Aucune donnée en mémoire';
+}
+window.addEventListener('DOMContentLoaded',loadFromStorage);
+
+// ── Parse date ────────────────────────────────────────────
+function parseDate(s){
+  if(!s)return null; s=s.trim();
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){ let yr=+m[3]; if(yr<100) yr+=yr>=50?1900:2000; return new Date(yr,+m[2]-1,+m[1]); }
+  m=s.match(/^(\d{4})[\/\-](\d{2})[\/\-](\d{2})$/);
+  if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  return null;
+}
+function fmtDate(d){return d?d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}):null;}
+
+function extractNameAndDate(line){
+  if(line.includes('|')){const p=line.split('|').map(s=>s.trim());return{name:p[0],dateStr:p[1]||null};}
+  const m=line.match(/^(.*?)\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s*$/);
+  if(m)return{name:m[1].trim(),dateStr:m[2].trim()};
+  return{name:line.trim(),dateStr:null};
+}
+
+// ── Agents ────────────────────────────────────────────────
+function loadAgents(){
+  const lines=document.getElementById('agents-input').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  agents=lines.map(line=>{
+    const{name,dateStr}=extractNameAndDate(line);
+    const d=dateStr?parseDate(dateStr):null;
+    return{name,hireDate:d?fmtDate(d):null};
+  });
+  refreshAgentsCount();
+  renderAgentsTable();
+  renderAgentsReadonly();
+  save();
+}
+function refreshAgentsCount(){
+  const wd=agents.filter(a=>a.hireDate).length;
+  document.getElementById('agents-count').textContent=
+    agents.length?`${agents.length} agent${agents.length>1?'s':''} · ${wd} avec date d'embauche`:'';
+}
+function renderAgentsTable(){
+  const wrap=document.getElementById('agents-table');
+  const list=document.getElementById('agents-list-view');
+  if(!agents.length){wrap.style.display='none';return;}
+  wrap.style.display='block';
+  list.innerHTML=agents.map((a,i)=>`
+    <div class="agent-item">
+      <span class="aname">${a.name}</span>
+      <span class="ahire ${a.hireDate?'':'missing'}">${a.hireDate?'embauché le '+a.hireDate:'date inconnue'}</span>
+      <button class="btn btn-danger" style="padding:4px 9px;font-size:11px;" onclick="removeAgent(${i})">✕</button>
+    </div>`).join('');
+  updateSaveInfo();
+}
+function renderAgentsReadonly(){
+  const list=document.getElementById('agents-readonly-list');
+  if(!agents.length){list.innerHTML='<div style="font-family:\'DM Mono\',monospace;font-size:12px;color:var(--text3);padding:8px;">Aucun agent chargé.</div>';return;}
+  list.innerHTML=agents.map(a=>`
+    <div class="agent-item">
+      <span class="aname">${a.name}</span>
+      <span class="ahire ${a.hireDate?'':'missing'}">${a.hireDate?'embauché le '+a.hireDate:'date inconnue'}</span>
+    </div>`).join('');
+}
+function removeAgent(idx){
+  agents.splice(idx,1);
+  document.getElementById('agents-input').value=agents.map(a=>a.hireDate?`${a.name} | ${a.hireDate}`:a.name).join('\n');
+  refreshAgentsCount(); renderAgentsTable(); renderAgentsReadonly(); save();
+}
+function clearAgents(){
+  if(!confirm('Vider la liste des agents ?'))return;
+  agents=[];
+  document.getElementById('agents-input').value='';
+  document.getElementById('agents-count').textContent='';
+  document.getElementById('agents-table').style.display='none';
+  renderAgentsReadonly(); save();
+}
+
+// ── Historique ────────────────────────────────────────────
+function addEntry(){
+  const dv=document.getElementById('new-date').value;
+  const ar=document.getElementById('new-agents').value;
+  if(!dv||!ar.trim())return;
+  const al=ar.split(/[\n,]/).map(s=>s.trim()).filter(Boolean);
+  history.push({date:dv,agents:al});
+  history.sort((a,b)=>a.date.localeCompare(b.date));
+  document.getElementById('new-date').value='';
+  document.getElementById('new-agents').value='';
+  save(); renderHistory();
+}
+function removeEntry(i){history.splice(i,1);save();renderHistory();}
+function renderHistory(){
+  const el=document.getElementById('histo-list');
+  if(!history.length){el.innerHTML='';updateSaveInfo();return;}
+  el.innerHTML=history.map((h,i)=>{
+    const d=new Date(h.date);
+    const lbl=d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'long',year:'numeric'});
+    const delBtn=isEditor?`<button class="btn btn-danger" onclick="event.stopPropagation();removeEntry(${i})" style="padding:5px 9px;font-size:11px;">✕</button>`:'';
+    const chips=h.agents.map(a=>`<span class="histo-agent-chip">${a}</span>`).join('');
+    return `<div style="border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface2);">
+      <div class="histo-entry" onclick="toggleHisto(${i})" style="border:none;border-radius:0;background:transparent;">
+        <span class="date-tag">${lbl}</span>
+        <span class="agents-tag" style="color:var(--text2);">${h.agents.length} agent${h.agents.length>1?'s':''}</span>
+        ${delBtn}
+        <span class="histo-chevron" id="chev-${i}">▼</span>
+      </div>
+      <div class="histo-agents-detail" id="histo-detail-${i}" style="padding:8px 13px 10px;gap:6px;flex-wrap:wrap;">
+        ${chips}
+      </div>
+    </div>`;
+  }).join('');
+  updateSaveInfo();
+}
+
+function toggleHisto(i){
+  const detail=document.getElementById('histo-detail-'+i);
+  const chev=document.getElementById('chev-'+i);
+  const isOpen=detail.style.display==='flex';
+  detail.style.display=isOpen?'none':'flex';
+  chev.classList.toggle('open',!isOpen);
+}
+
+// ── Calcul ────────────────────────────────────────────────
+function calculate(){
+  if(!agents.length){
+    if(isEditor) alert('Chargez d\'abord la liste des agents (Étape 1).');
+    return;
+  }
+  const today=new Date();
+  const countMap={},lastMap={};
+  agents.forEach(a=>{countMap[a.name]=0;lastMap[a.name]=null;});
+
+  const unknown=new Set();
+  history.forEach(h=>{
+    h.agents.forEach(name=>{
+      const match=agents.find(a=>a.name.toLowerCase()===name.toLowerCase());
+      if(match){
+        countMap[match.name]++;
+        if(!lastMap[match.name]||h.date>lastMap[match.name])lastMap[match.name]=h.date;
+      } else unknown.add(name);
+    });
+  });
+
+  const neverGroup=[],haveGroup=[];
+  agents.forEach(a=>{
+    const count=countMap[a.name];
+    const lastDate=lastMap[a.name];
+    const daysSinceLast=lastDate?Math.floor((today-new Date(lastDate))/86400000):null;
+    const hireDateObj=a.hireDate?parseDate(a.hireDate):null;
+    const seniorityDays=hireDateObj?Math.floor((today-hireDateObj)/86400000):null;
+    const entry={name:a.name,count,lastDate,daysSinceLast,hireDate:a.hireDate,seniorityDays};
+    if(count===0)neverGroup.push(entry); else haveGroup.push(entry);
+  });
+
+  haveGroup.sort((a,b)=>(a.count*10000-(a.daysSinceLast||0))-(b.count*10000-(b.daysSinceLast||0)));
+  neverGroup.sort((a,b)=>{
+    if(a.seniorityDays!==null&&b.seniorityDays!==null)return b.seniorityDays-a.seniorityDays;
+    if(a.seniorityDays!==null)return -1;
+    if(b.seniorityDays!==null)return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const section=document.getElementById('result-section');
+  section.style.display='block';
+  section.scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('result-subtitle').textContent=
+    `${agents.length} agents · ${neverGroup.length} jamais bénéficié · ${haveGroup.length} déjà bénéficié`;
+
+  let html='';
+
+  if(neverGroup.length){
+    html+=`<div class="result-group">
+      <div class="group-label" style="color:var(--accent4);">
+        <span>⭐ Jamais bénéficié — priorité absolue · classés par ancienneté</span>
+        <div class="group-line"></div>
+        <span style="white-space:nowrap;">${neverGroup.length} agent${neverGroup.length>1?'s':''}</span>
+      </div><div class="agent-list">`;
+    neverGroup.forEach((s,i)=>{
+      const seniorStr=s.seniorityDays!==null
+        ?`${(s.seniorityDays/365).toFixed(1)} ans d'ancienneté (depuis ${s.hireDate})`
+        :'ancienneté inconnue';
+      html+=`<div class="agent-row p3" style="animation-delay:${i*20}ms">
+        <div class="rank anc">${i+1}</div>
+        <div><div class="agent-name">${s.name}</div>
+          <div class="agent-detail">
+            <span>🚫 0 jour férié bénéficié</span>
+            <span>🏢 ${seniorStr}</span>
+          </div>
+        </div>
+        <span class="badge badge-purple">jamais bénéficié</span>
+      </div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  if(haveGroup.length){
+    const topLimit=Math.ceil(haveGroup.length*0.33),midLimit=Math.ceil(haveGroup.length*0.66);
+    html+=`<div class="result-group">
+      <div class="group-label" style="color:var(--text2);">
+        <span>📅 Déjà bénéficié — classés par priorité</span>
+        <div class="group-line"></div>
+        <span style="white-space:nowrap;">${haveGroup.length} agent${haveGroup.length>1?'s':''}</span>
+      </div><div class="agent-list">`;
+    haveGroup.forEach((s,i)=>{
+      const isTop=i<topLimit,isMid=!isTop&&i<midLimit;
+      const cls=isTop?'p1':isMid?'p2':'';
+      const rankCls=isTop?'top':isMid?'mid':'';
+      const badge=isTop?'<span class="badge badge-green">priorité haute</span>'
+        :isMid?'<span class="badge badge-yellow">priorité moyenne</span>'
+        :'<span class="badge badge-gray">priorité basse</span>';
+      const lastStr=s.daysSinceLast!==null?`il y a ${s.daysSinceLast} j`:'—';
+      html+=`<div class="agent-row ${cls}" style="animation-delay:${(neverGroup.length+i)*20}ms">
+        <div class="rank ${rankCls}">${i+1}</div>
+        <div><div class="agent-name">${s.name}</div>
+          <div class="agent-detail">
+            <span>📅 ${s.count} jour${s.count>1?'s':''} fériés bénéficiés</span>
+            <span>⏱ dernier : ${lastStr}</span>
+          </div>
+        </div>
+        ${badge}
+      </div>`;
+    });
+    html+=`</div></div>`;
+  }
+
+  document.getElementById('result-body').innerHTML=html;
+
+  const warnEl=document.getElementById('warn-unknown');
+  if(unknown.size>0){
+    warnEl.style.display='block';
+    warnEl.innerHTML='⚠ Noms dans l\'historique non trouvés dans la liste : '+[...unknown].join(', ');
+  } else warnEl.style.display='none';
+}
+
+// ── Copier ────────────────────────────────────────────────
+function copyResult(){
+  let text='PRIORITÉ JOURS FÉRIÉS\n'+'─'.repeat(38)+'\n';
+  const groups=document.querySelectorAll('.result-group');
+  groups.forEach(g=>{
+    const label=g.querySelector('.group-label span')?.textContent||'';
+    text+='\n'+label.toUpperCase()+'\n';
+    g.querySelectorAll('.agent-row').forEach((r,i)=>{
+      const name=r.querySelector('.agent-name')?.textContent||'';
+      const details=[...r.querySelectorAll('.agent-detail span')].map(e=>e.textContent.trim()).join(' · ');
+      text+=`  ${i+1}. ${name}  —  ${details}\n`;
+    });
+  });
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.querySelector('[onclick="copyResult()"]');
+    btn.textContent='✓ Copié !';
+    setTimeout(()=>btn.textContent='📋 Copier la liste',2000);
+  });
+}
+
+// ── Reset ─────────────────────────────────────────────────
+function clearAll(){
+  if(!confirm('Réinitialiser toutes les données ? (mémoire effacée)'))return;
+  agents=[];history=[];
+  localStorage.removeItem(SK);
+  document.getElementById('agents-input').value='';
+  document.getElementById('agents-count').textContent='';
+  document.getElementById('agents-table').style.display='none';
+  document.getElementById('histo-list').innerHTML='';
+  document.getElementById('result-section').style.display='none';
+  renderAgentsReadonly(); updateSaveInfo();
+}
+</script>
+</body>
+</html>
